@@ -1,0 +1,72 @@
+#!/bin/bash
+
+BOT_TOKEN="7083473210:AAHnVilBJyGByD0IA-Xp4595DzHdD_WHXP0"
+CHAT_ID="-4714960227"
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+  -f | --files)
+    files=()
+    shift
+    if [ $# -eq 0 ]; then
+      fzf_result=$(find . | fzf -m --preview 'bat --color=always {}' --preview-window=right:60%)
+      for file in $fzf_result; do
+        files+=("$file")
+      done
+    fi
+    # Collect all arguments until next option (starts with -)
+    while [ $# -gt 0 ] && [[ "$1" != -* ]]; do
+      files+=("$1")
+      shift
+    done
+    for file in "${files[@]}"; do
+      if [ -e "$file" ]; then
+        if [ -d "$file" ]; then
+          tar -cvf "$file.tar.gz" "$file"
+          file="$file.tar.gz"
+        fi
+        echo "Sending $file..."
+        curl -s --progress-bar -F document=@"$file" \
+          "https://api.telegram.org/bot$BOT_TOKEN/sendDocument?chat_id=$CHAT_ID" | tee /dev/null
+        if [[ "$file" =~ \.tar\.gz$ ]]; then
+          rm -rf "$file"
+        fi
+      else
+        echo "File not found: $file"
+      fi
+    done
+    echo -e "\nUpload complete!"
+    ;;
+  -m | --message)
+    MESSAGE=""
+    shift
+    # Collect all arguments until next option (starts with -)
+    while [ $# -gt 0 ] && [[ "$1" != -* ]]; do
+      MESSAGE+="$1 "
+      shift
+    done
+
+    curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+      -d chat_id=$CHAT_ID -s \
+      -d text="$MESSAGE" | tee /dev/null
+
+    ;;
+  -h | --help)
+    echo "Usage: $0 -f file1 file2 file3 [-h]"
+    exit 0
+    ;;
+  *)
+    MESSAGE=""
+    # Collect all arguments until next option (starts with -)
+    while [ $# -gt 0 ] && [[ "$1" != -* ]]; do
+      MESSAGE+="$1 "
+      shift
+    done
+
+    curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+      -d chat_id=$CHAT_ID -s \
+      -d text="$MESSAGE" | tee /dev/null
+
+    ;;
+  esac
+done
